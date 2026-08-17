@@ -3,7 +3,7 @@
 This is a Next.js app that can be used to conduct Active Learning locally for image annotation and train models. It can be used by non-professionals, as well. Active Learning is an iterative machine learning approach where the model intelligently selects the most informative samples for human labeling, rather than requiring humans to label every piece of data. The system starts with a small set of labeled images, trains an initial model, and then identifies uncertain or ambiguous images that would most improve the model's performance when labeled. This significantly reduces the time and effort needed for data labeling while maintaining high model quality. Users can simply review and label the suggested images through an intuitive interface, and the model continuously learns and improves from this focused feedback. This approach is particularly valuable when working with large image datasets where labeling everything would be impractical.
 
 
-## contributors: 
+## Contributors: 
 Srikar Kusumanchi (https://github.com/Srikark-17) </br>
 Srinath Narayanan (https://github.com/srinathn07) </br>
 Mohammad Eslami (https://github.com/mohaEs)
