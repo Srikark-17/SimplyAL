@@ -5,6 +5,7 @@ This is a Next.js app that can be used to conduct Active Learning locally for im
 
 ## contributors: 
 Srikar Kusumanchi (https://github.com/Srikark-17) </br>
+Srinath Narayanan (https://github.com/srinathn07) </br>
 Mohammad Eslami (https://github.com/mohaEs)
 
 ## Citation: 
