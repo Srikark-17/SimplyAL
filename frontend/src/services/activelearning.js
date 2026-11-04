@@ -1,4 +1,10 @@
-const API_URL = "http://localhost:8000";
+// Backend address: NEXT_PUBLIC_API_URL if set at build time; otherwise port 8000
+// on the host that served this page, so the app also works from other computers.
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== "undefined"
+    ? `${window.location.protocol}//${window.location.hostname}:8000`
+    : "http://localhost:8000");
 
 const activeLearnAPI = {
   async initializeProject({
@@ -733,3 +739,5 @@ const activeLearnAPI = {
 };
 
 export default activeLearnAPI;
+
+export { API_URL };

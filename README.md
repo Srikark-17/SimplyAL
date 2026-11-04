@@ -134,7 +134,7 @@ where:
 - `least_confidence`: Selects samples where the model's highest predicted class probability is lowest, indicating uncertainty
 - `margin`: Picks samples with the smallest difference between the top two predicted class probabilities, suggesting confusion between classes
 - `entropy`: Chooses samples with highest entropy in their prediction probabilities, indicating maximum uncertainty across all classes
-- `diversity`: Selects samples that are most different from the currently labeled data in feature space, ensuring varied training examples
+- `diversity` (core-set): Repeatedly selects the unlabeled image farthest from all labeled and already selected images in the model's penultimate-layer embedding space (k-center greedy; Sener and Savarese, ICLR 2018), so each batch covers the pool
 
 
 ## Clinical Deployment
@@ -143,6 +143,12 @@ SimplyAL is designed for self-hosted deployment on secure institutional
 infrastructure. Users access the software through a web browser while
 training, GPUs, and image storage remain centralized on a workstation or
 server.
+
+The backend has no user authentication, so reach it only through an
+institutional VPN, an SSH tunnel, or an authenticated reverse proxy. Each
+backend process serves one project at a time. The interface calls the backend
+on port 8000 of the host that served the page; to use another address, set
+`NEXT_PUBLIC_API_URL` (for example `http://myserver:8001`) before starting the frontend.
 
 
 ## License
