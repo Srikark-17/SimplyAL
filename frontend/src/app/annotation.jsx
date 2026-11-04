@@ -34,7 +34,7 @@ import {
 } from "../components/ui/select";
 import ImageLoader from "../components/imageLoader";
 import { Alert, AlertDescription } from "../components/ui/alert";
-import activeLearnAPI from "../services/activelearning";
+import activeLearnAPI, { API_URL } from "../services/activelearning";
 import AutomatedTrainingControls from "@/components/automatedTrainingControls";
 import { BatchProgress, ActiveLearningStatus } from "@/components/components";
 import CheckpointControls from "@/components/checkpointControls";
@@ -42,6 +42,10 @@ import ProjectImport from "@/components/projectImport";
 import PretrainedModelImport from "@/components/pretrainedModel";
 import ModelAdaptationControls from "@/components/modelAdaptationControls";
 import ModelEvaluationScreen from "@/components/modelEvaluationScreen";
+
+// Learning rate loaded when a backbone is selected (manuscript Section 3.4).
+// TODO: set each value to the best rate for that backbone from the sensitivity runs.
+const LR_PRESETS = { resnet18: 0.001, resnet50: 0.001, dinov2: 0.001 };
 
 const ActiveLearningUI = () => {
   // Project Configuration State
@@ -598,10 +602,7 @@ const ActiveLearningUI = () => {
         setSuccessMessage("Batch complete - Starting episode training...");
 
         try {
-          const episodeResult = await activeLearnAPI.startEpisode(
-            epochs,
-            batchSize,
-          );
+          const episodeResult = await activeLearnAPI.startEpisode(epochs, batchSize, lrConfig.initial_lr);
 
           if (episodeResult.final_val_acc) {
             setValidationAccuracy(episodeResult.final_val_acc);
@@ -781,10 +782,7 @@ const ActiveLearningUI = () => {
         if (result.stats.labeled > 0) {
           setInfoMessage("Starting initial training with annotated data...");
           try {
-            const episodeResult = await activeLearnAPI.startEpisode(
-              epochs,
-              batchSize,
-            );
+            const episodeResult = await activeLearnAPI.startEpisode(epochs, batchSize, lrConfig.initial_lr);
             if (episodeResult.final_val_acc || episodeResult.best_accuracy) {
               const accuracy =
                 episodeResult.final_val_acc || episodeResult.best_accuracy;
@@ -847,10 +845,7 @@ const ActiveLearningUI = () => {
         if (result.stats.labeled > 0) {
           setInfoMessage("Starting initial training with annotated data...");
           try {
-            const episodeResult = await activeLearnAPI.startEpisode(
-              epochs,
-              batchSize,
-            );
+            const episodeResult = await activeLearnAPI.startEpisode(epochs, batchSize, lrConfig.initial_lr);
             if (episodeResult.final_val_acc) {
               setValidationAccuracy(episodeResult.final_val_acc);
             }
@@ -1042,7 +1037,7 @@ Possible solutions:
         await activeLearnAPI.updateProjectLabels(labels);
       }
 
-      const response = await fetch(`http://localhost:8000/export-project`, {
+      const response = await fetch(`${API_URL}/export-project`, {
         method: "GET",
       });
 
@@ -1196,7 +1191,7 @@ Possible solutions:
 
       console.log("Loading checkpoint:", checkpointId);
 
-      const response = await fetch(`http://localhost:8000/load-checkpoint`, {
+      const response = await fetch(`${API_URL}/load-checkpoint`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1500,7 +1495,12 @@ Possible solutions:
                                 <Label>Model Selection</Label>
                                 <Select
                                   value={selectedModel}
-                                  onValueChange={setSelectedModel}
+                                  onValueChange={(model) => {
+                                    setSelectedModel(model);
+                                    if (LR_PRESETS[model] !== undefined) {
+                                      setLrConfig((c) => ({ ...c, initial_lr: LR_PRESETS[model] }));
+                                    }
+                                  }}
                                   disabled={isInitialized}
                                 >
                                   <SelectTrigger>
@@ -1591,41 +1591,6 @@ Possible solutions:
                                           </SelectItem>
                                           <SelectItem value="diversity">
                                             Diversity-based
-                                          </SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                      <Label>Learning Rate Strategy</Label>
-                                      <Select
-                                        value={lrConfig.strategy}
-                                        onValueChange={(value) =>
-                                          setLrConfig((prev) => ({
-                                            ...prev,
-                                            strategy: value,
-                                          }))
-                                        }
-                                        disabled={
-                                          isInitialized ||
-                                          batchStats.completed > 0
-                                        }
-                                      >
-                                        <SelectTrigger>
-                                          <SelectValue placeholder="Select LR strategy" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="plateau">
-                                            Reduce on Plateau
-                                          </SelectItem>
-                                          <SelectItem value="cosine">
-                                            Cosine Annealing
-                                          </SelectItem>
-                                          <SelectItem value="warmup">
-                                            One Cycle with Warmup
-                                          </SelectItem>
-                                          <SelectItem value="step">
-                                            Step Decay
                                           </SelectItem>
                                         </SelectContent>
                                       </Select>
@@ -1995,41 +1960,6 @@ Possible solutions:
                                           </SelectContent>
                                         </Select>
                                       </div>
-
-                                      <div className="space-y-2">
-                                        <Label>Learning Rate Strategy</Label>
-                                        <Select
-                                          value={lrConfig.strategy}
-                                          onValueChange={(value) =>
-                                            setLrConfig((prev) => ({
-                                              ...prev,
-                                              strategy: value,
-                                            }))
-                                          }
-                                          disabled={
-                                            isInitialized ||
-                                            batchStats.completed > 0
-                                          }
-                                        >
-                                          <SelectTrigger>
-                                            <SelectValue placeholder="Select LR strategy" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="plateau">
-                                              Reduce on Plateau
-                                            </SelectItem>
-                                            <SelectItem value="cosine">
-                                              Cosine Annealing
-                                            </SelectItem>
-                                            <SelectItem value="warmup">
-                                              One Cycle with Warmup
-                                            </SelectItem>
-                                            <SelectItem value="step">
-                                              Step Decay
-                                            </SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
                                     </div>
 
                                     <div className="grid grid-cols-3 gap-4">
@@ -2214,7 +2144,7 @@ Possible solutions:
 
                                     if (labels.length > 0) {
                                       const labelResponse = await fetch(
-                                        `http://localhost:8000/update-project-labels`,
+                                        `${API_URL}/update-project-labels`,
                                         {
                                           method: "POST",
                                           headers: {
@@ -2234,7 +2164,7 @@ Possible solutions:
                                     }
 
                                     const response = await fetch(
-                                      `http://localhost:8000/export-project`,
+                                      `${API_URL}/export-project`,
                                       {
                                         method: "GET",
                                       },
@@ -2515,40 +2445,6 @@ Possible solutions:
                                     </SelectContent>
                                   </Select>
                                 </div>
-
-                                <div className="space-y-2">
-                                  <Label>Learning Rate Strategy</Label>
-                                  <Select
-                                    value={lrConfig.strategy}
-                                    onValueChange={(value) =>
-                                      setLrConfig((prev) => ({
-                                        ...prev,
-                                        strategy: value,
-                                      }))
-                                    }
-                                    disabled={
-                                      isInitialized || batchStats.completed > 0
-                                    }
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select LR strategy" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="plateau">
-                                        Reduce on Plateau
-                                      </SelectItem>
-                                      <SelectItem value="cosine">
-                                        Cosine Annealing
-                                      </SelectItem>
-                                      <SelectItem value="warmup">
-                                        One Cycle with Warmup
-                                      </SelectItem>
-                                      <SelectItem value="step">
-                                        Step Decay
-                                      </SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
                               </div>
 
                               <div className="grid grid-cols-3 gap-4">
@@ -2713,7 +2609,7 @@ Possible solutions:
 
                                           if (labels.length > 0) {
                                             const labelResponse = await fetch(
-                                              `http://localhost:8000/update-project-labels`,
+                                              `${API_URL}/update-project-labels`,
                                               {
                                                 method: "POST",
                                                 headers: {
@@ -2734,7 +2630,7 @@ Possible solutions:
                                           }
 
                                           const response = await fetch(
-                                            `http://localhost:8000/export-project`,
+                                            `${API_URL}/export-project`,
                                             {
                                               method: "GET",
                                             },
