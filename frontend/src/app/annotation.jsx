@@ -45,7 +45,7 @@ import ModelEvaluationScreen from "@/components/modelEvaluationScreen";
 
 // Learning rate loaded when a backbone is selected (manuscript Section 3.4).
 // TODO: set each value to the best rate for that backbone from the sensitivity runs.
-const LR_PRESETS = { resnet18: 0.001, resnet50: 0.001, dinov2: 0.001 };
+const LR_PRESETS = { resnet18: 1e-5, resnet50: 1e-05, dinov2: 1e-05 };
 
 const ActiveLearningUI = () => {
   // Project Configuration State
@@ -107,7 +107,7 @@ const ActiveLearningUI = () => {
   });
   const [lrConfig, setLrConfig] = useState({
     strategy: "plateau", // default strategy
-    initial_lr: 0.001,
+    initial_lr: 1e-05,
     factor: 0.1,
     patience: 5,
     min_lr: 1e-6,
@@ -1611,9 +1611,9 @@ Possible solutions:
                                             ),
                                           }))
                                         }
-                                        min={0.0001}
+                                        min={0.000001}
                                         max={0.1}
-                                        step={0.0001}
+                                        step="any"
                                         disabled={isInitialized || isRetraining}
                                       />
                                     </div>
@@ -1976,9 +1976,9 @@ Possible solutions:
                                               ),
                                             }))
                                           }
-                                          min={0.0001}
+                                          min={0.000001}
                                           max={0.1}
-                                          step={0.0001}
+                                          step="any"
                                           disabled={
                                             isInitialized ||
                                             batchStats.completed > 0
@@ -2459,9 +2459,9 @@ Possible solutions:
                                         initial_lr: parseFloat(e.target.value),
                                       }))
                                     }
-                                    min={0.0001}
+                                    min={0.000001}
                                     max={0.1}
-                                    step={0.0001}
+                                    step="any"
                                     disabled={
                                       isInitialized || batchStats.completed > 0
                                     }

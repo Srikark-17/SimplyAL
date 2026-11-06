@@ -38,6 +38,11 @@ Mohammad Eslami (https://github.com/mohaEs)
         └── Project Storage
 
 
+## Citation
+Please cite the following paper if you found this software useful for your research.
+
+-   SimplyAL: An Open-Source Toolbox for Active Learning-Based Image Annotation and Model Training (SoftwareX Journal)
+
 ## Installation
 
 ### Step 1: System requirements:
@@ -67,9 +72,11 @@ If above requirements satisfies:
 
 1. Create an environment with conda
    `conda create -n SimplyAL_ENVIRONMENT python=3.11`
-2. install the requirements
+2. activate the environment
+   `conda activate SimplyAL_ENVIRONMENT`
+3. install the requirements
    `pip install -r backend/requirements.txt`
-3. install frontend 
+4. install frontend 
    `yarn --cwd ./frontend`
 
 

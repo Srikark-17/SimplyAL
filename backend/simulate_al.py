@@ -45,7 +45,7 @@ import numpy as np
 import pandas as pd
 import torch
 from PIL import Image
-from sklearn.metrics import f1_score
+from sklearn.metrics import balanced_accuracy_score, f1_score
 
 ERROR_MARKERS = ("Falling back to random sampling", "Error computing uncertainty",
                  "Error in get_next_batch")
@@ -67,16 +67,16 @@ def parse_args():
                    help="any of least_confidence, margin, entropy, diversity, random")
     p.add_argument("--seeds", default="0,1,2")
     p.add_argument("--test-frac", type=float, default=0.2, help="stratified held-out test fraction")
-    p.add_argument("--seed-size", type=int, default=170, help="labeled images at Episode 0")
+    p.add_argument("--seed-size", type=int, default=16, help="labeled images at Episode 0")
     p.add_argument("--episode-size", type=int, default=16, help="images acquired per episode")
     p.add_argument("--batch-size", type=int, default=None,
                    help="training mini-batch (default: the episode size, as in the app)")
     p.add_argument("--epochs", type=int, default=5, help="training epochs per episode")
-    p.add_argument("--lr", type=float, default=1e-3)
+    p.add_argument("--lr", type=float, default=1e-5, help="the app default")
     p.add_argument("--val-split", type=float, default=0.2, help="in-app validation ratio")
-    p.add_argument("--max-frac", type=float, default=0.6,
+    p.add_argument("--max-frac", type=float, default=0.5,
                    help="stop once this fraction of seed + pool images is labeled (0-1, exclusive)")
-    p.add_argument("--budgets", default="25,35,50", help="percent-labeled checkpoints for summary.csv")
+    p.add_argument("--budgets", default="3, 6, 9, 12, 15, 18, 21, 24, 27, 30, ", help="percent-labeled checkpoints for summary.csv")
     p.add_argument("--plateau-delta", type=float, default=1.0, help="percentage points")
     p.add_argument("--plateau-k", type=int, default=3, help="consecutive episodes")
     p.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"])
@@ -209,7 +209,8 @@ class PhaseTimer:
         return {key: totals.get(key, 0.0) for key in TIMED.values()}
 
 
-def evaluate(model, tensors, idx, labels, device, batch_size):
+def evaluate(model, tensors, idx, labels, device, batch_size, n_classes):
+    """Accuracy, weighted F1, macro F1 and balanced accuracy on the test images."""
     model.eval()
     preds = []
     with torch.no_grad():
@@ -217,8 +218,19 @@ def evaluate(model, tensors, idx, labels, device, batch_size):
             x = torch.stack([tensors[i] for i in idx[s:s + batch_size]]).to(device)
             preds.append(model(x).argmax(dim=1).cpu())
     pred, true = torch.cat(preds).numpy(), labels[idx]
+    classes = list(range(n_classes))
     return (float((pred == true).mean()),
-            float(f1_score(true, pred, average="weighted", zero_division=0)))
+            float(f1_score(true, pred, labels=classes, average="weighted", zero_division=0)),
+            float(f1_score(true, pred, labels=classes, average="macro", zero_division=0)),
+            float(balanced_accuracy_score(true, pred)))
+
+
+def rare_classes(labels, n=2):
+    """The n smallest classes of the whole dataset (for counting rare-class labels)."""
+    values, counts = np.unique(labels, return_counts=True)
+    if len(values) <= 2 or counts.max() <= 1.5 * counts.min():
+        return set()  # balanced or binary: not tracked
+    return set(values[np.argsort(counts, kind="stable")[:n]].tolist())
 
 
 def check_margin(simplyal, allow):
@@ -263,6 +275,7 @@ def run_one(simplyal, args, data, split, key, device, write_row):
     for i in pool_idx:
         m.unlabeled_data[i] = app[i]
     universe = len(seed_idx) + len(pool_idx)
+    rare = rare_classes(labels)
     timer = PhaseTimer(m, device)
     tag = f"{key['model']} | {key['strategy']} | seed {key['seed']}"
     try:
@@ -289,18 +302,24 @@ def run_one(simplyal, args, data, split, key, device, write_row):
                 if selection_error:
                     print(f"WARNING [{tag}]: SimplyAL reported a selection error; this batch was "
                           "not chosen by the requested strategy", flush=True)
-            acc, f1 = evaluate(m.model, test, test_idx, labels, device, args.eval_batch_size)
+            acc, f1, macro_f1, bal_acc = evaluate(m.model, test, test_idx, labels, device,
+                                                  args.eval_batch_size, len(classes))
+            known = list(m.labeled_data) + list(m.validation_data)
+            n_rare = int(sum(int(labels[i]) in rare for i in known)) if rare else np.nan
             metrics = result["metrics"]
             row = dict(key, episode=metrics["episode"], n_labeled=n_labeled,
                        pct_labeled=100.0 * n_labeled / universe,
                        n_train=len(m.labeled_data), n_val=len(m.validation_data),
-                       test_acc=acc, test_f1=f1,
+                       test_acc=acc, test_f1=f1, test_macro_f1=macro_f1, test_bal_acc=bal_acc,
+                       n_rare_labeled=n_rare,
                        app_val_acc=metrics["best_val_acc"] / 100.0,
                        app_val_f1=metrics["f1_score"] / 100.0,
                        wait1_s=wait1, wait2_s=wait2, selection_error=selection_error, **phases)
             write_row(row)
             print(f"[{tag}] episode {row['episode']}: {row['pct_labeled']:.1f}% labeled, "
-                  f"test acc {acc:.3f}, F1 {f1:.3f}, wait 1 {wait1:.1f} s, wait 2 {wait2:.1f} s",
+                  f"test acc {acc:.3f}, F1 {f1:.3f}, macro F1 {macro_f1:.3f}, "
+                  + (f"rare labeled {n_rare}, " if rare else "")
+                  + f"wait 1 {wait1:.1f} s, wait 2 {wait2:.1f} s",
                   flush=True)
             if done:
                 break
@@ -344,9 +363,16 @@ def summarize(out_dir, budgets):
                 hit = s[s.pct_labeled >= b - 1e-9]
                 rec[f"acc_at_{b}"] = hit.test_acc.iloc[0] if len(hit) else np.nan
                 rec[f"f1_at_{b}"] = hit.test_f1.iloc[0] if len(hit) else np.nan
+                for col, name in (("test_macro_f1", "macro_f1"), ("test_bal_acc", "bal_acc"),
+                                  ("n_rare_labeled", "rare")):
+                    if col in s.columns:
+                        rec[f"{name}_at_{b}"] = hit[col].iloc[0] if len(hit) else np.nan
             x, y = s.pct_labeled.to_numpy(), s.test_acc.to_numpy()
             rec["alc_acc"] = (float(np.sum(np.diff(x) * (y[1:] + y[:-1]) / 2) / (x[-1] - x[0]))
                               if len(x) > 1 else np.nan)
+            if "test_macro_f1" in s.columns and len(x) > 1:
+                ym = s.test_macro_f1.to_numpy()
+                rec["alc_macro_f1"] = float(np.sum(np.diff(x) * (ym[1:] + ym[:-1]) / 2) / (x[-1] - x[0]))
             selected = s[s.wait2_s.notna()]
             last = selected.iloc[-1] if len(selected) else s.iloc[-1]
             for name, r in (("first", s.iloc[0]), ("last", last)):
@@ -402,8 +428,12 @@ def plot_curves(out_dir, setting):
     palette = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     colors = {m: palette[i % len(palette)] for i, m in enumerate(sorted(df.model.unique()))}
     styles = {"least_confidence": "-", "random": "--"}
+    second = (("test_macro_f1", "Macro F1-score")
+              if "test_macro_f1" in df.columns and df.test_macro_f1.notna().any()
+              and df.get("n_rare_labeled", pd.Series(dtype=float)).notna().any()
+              else ("test_f1", "Weighted F1-score"))
     fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-    for ax, metric, label in zip(axes, ("test_acc", "test_f1"), ("Test accuracy", "Weighted F1-score")):
+    for ax, metric, label in zip(axes, ("test_acc", second[0]), ("Test accuracy", second[1])):
         for (model, strategy), g in df.groupby(["model", "strategy"]):
             c = g.groupby("episode").agg(x=("pct_labeled", "mean"), m=(metric, "mean"), s=(metric, "std"))
             sd = c.s.fillna(0)

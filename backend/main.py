@@ -114,7 +114,7 @@ class ProjectInit(BaseModel):
         description="Number of training epochs"
     )
     learning_rate: float = Field(
-        default=0.001,
+        default=1e-5,
         gt=0.0,
         description="Initial learning rate"
     )
@@ -123,7 +123,7 @@ class TrainingConfig(BaseModel):
     epochs: int
     batch_size: int
     sampling_strategy: str
-    learning_rate: float = 0.001
+    learning_rate: float = 1e-5
 
 class BatchRequest(BaseModel):
     strategy: str
@@ -136,7 +136,7 @@ class LabelSubmission(BaseModel):
 class TrainEpisodeRequest(BaseModel):
     epochs: int = 5
     batch_size: int = 16
-    learning_rate: float = 0.001
+    learning_rate: float = 1e-5
 
 class SimpleViTClassifier(nn.Module):
     """Simple ViT-based classifier for RETFound and similar models"""
@@ -243,7 +243,7 @@ class ActiveLearningManager:
         self.lr_scheduler = None
         self.lr_config = {
             'strategy': 'plateau',
-            'initial_lr': 0.001,
+            'initial_lr': 1e-5,
             'factor': 0.1,
             'patience': 5,
             'min_lr': 1e-6
@@ -259,7 +259,7 @@ class ActiveLearningManager:
         'sampling_strategy': 'least_confidence',
         'batch_size': 16,
         'epochs': 5,
-        'learning_rate': 0.001,
+        'learning_rate': 1e-5,
         'scheduler': {
             'strategy': 'plateau',
             'params': {
@@ -755,7 +755,7 @@ class ActiveLearningManager:
             
             self.optimizer = torch.optim.Adam(
                 self.model.parameters(), 
-                lr=self.training_config.get('learning_rate', 0.001)
+                lr=self.training_config.get('learning_rate', 1e-5)
             )
             
             print(f"Custom model '{model_name}' set successfully")
@@ -798,7 +798,7 @@ class ActiveLearningManager:
             
             self.optimizer = torch.optim.Adam(
                 self.model.parameters(), 
-                lr=self.training_config.get('learning_rate', 0.001)
+                lr=self.training_config.get('learning_rate', 1e-5)
             )
             
             return True
@@ -2159,7 +2159,7 @@ class AutomatedTrainingManager:
             'sampling_strategy': 'least_confidence',
             'batch_size': 16,
             'epochs': 5,
-            'learning_rate': 0.001
+            'learning_rate': 1e-5
         }
         
         self.min_required_samples = 10
@@ -2252,7 +2252,7 @@ class AutomatedTrainingManager:
                 'epochs': int(config['epochs']),
                 'batch_size': int(config['batch_size']),
                 'sampling_strategy': str(config['sampling_strategy']),
-                'learning_rate': float(config.get('learning_rate', 0.001))
+                'learning_rate': float(config.get('learning_rate', 1e-5))
             }
             
             print(f"Processed config: {self.training_config}")
@@ -2391,7 +2391,7 @@ class AutomatedTrainingManager:
         training_result = self.al_manager.train_episode(
             epochs=self.al_manager.config.get('epochs', 10),
             batch_size=self.al_manager.config.get('batch_size', 16),
-            learning_rate=self.al_manager.config.get('learning_rate', 0.001)
+            learning_rate=self.al_manager.config.get('learning_rate', 1e-5)
         )
         d
         metrics = {
@@ -2417,7 +2417,7 @@ class LRSchedulerManager:
     def __init__(self, optimizer, strategy="plateau", **kwargs):
         self.optimizer = optimizer
         self.strategy = strategy
-        self.initial_lr = kwargs.get('initial_lr', 0.001)
+        self.initial_lr = kwargs.get('initial_lr', 1e-5)
         self.history = []
         self.scheduler = self._create_scheduler(**kwargs)
         
@@ -2643,7 +2643,7 @@ async def initialize_project(request: ProjectInit):
             'sampling_strategy': request.sampling_strategy if hasattr(request, 'sampling_strategy') else 'least_confidence',
             'batch_size': request.batch_size if hasattr(request, 'batch_size') else 16,
             'epochs': request.epochs if hasattr(request, 'epochs') else 10,
-            'learning_rate': request.learning_rate if hasattr(request, 'learning_rate') else 0.001,
+            'learning_rate': request.learning_rate if hasattr(request, 'learning_rate') else 1e-5,
         }
         
         result = al_manager.initialize_project(
@@ -2756,7 +2756,7 @@ async def submit_label(submission: LabelSubmission):
 async def train_model(
     epochs: int = 5,
     batch_size: int = 16,
-    learning_rate: float = 0.001
+    learning_rate: float = 1e-5
 ):
     """Train/retrain model on labeled data"""
     try:
@@ -3306,7 +3306,7 @@ async def import_model(uploaded_file: UploadFile = File(...)):
                 'sampling_strategy': training_config.get('sampling_strategy', 'least_confidence'),
                 'epochs': training_config.get('epochs', 5),
                 'batch_size': training_config.get('batch_size', 16),
-                'learning_rate': training_config.get('learning_rate', 0.001)
+                'learning_rate': training_config.get('learning_rate', 1e-5)
             })
         
         return {
@@ -3914,9 +3914,9 @@ async def get_lr_scheduler_status():
         if al_manager.lr_scheduler is None:
             return {
                 "strategy": "plateau",
-                "current_lr": 0.001,
+                "current_lr": 1e-5,
                 "history": [],
-                "initial_lr": 0.001
+                "initial_lr": 1e-5
             }
             
         return al_manager.lr_scheduler.get_status()
@@ -5001,7 +5001,7 @@ async def import_project(uploaded_file: UploadFile = File(...)):
                     'sampling_strategy': hyperparameters.get('sampling_strategy', 'least_confidence'),
                     'epochs': hyperparameters.get('epochs', 10),
                     'batch_size': hyperparameters.get('batch_size', 16),
-                    'learning_rate': hyperparameters.get('learning_rate', 0.001)
+                    'learning_rate': hyperparameters.get('learning_rate', 1e-5)
                 })
             
             al_manager.labeled_data.clear()

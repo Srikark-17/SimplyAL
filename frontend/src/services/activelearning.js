@@ -101,7 +101,7 @@ const activeLearnAPI = {
     return result; // Now includes batch_complete and is_training flags
   },
 
-  async trainModel(epochs = 5, batchSize = 16, learningRate = 0.001) {
+  async trainModel(epochs = 5, batchSize = 16, learningRate = 1e-5) {
     const response = await fetch(`${API_URL}/train`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -114,7 +114,7 @@ const activeLearnAPI = {
     return response.json();
   },
 
-  async startEpisode(epochs = 5, batchSize = 16, learningRate = 0.001) {
+  async startEpisode(epochs = 5, batchSize = 16, learningRate = 1e-5) {
     const response = await fetch(`${API_URL}/train-episode`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -299,7 +299,7 @@ const activeLearnAPI = {
       epochs: config.epochs,
       batch_size: config.batch_size,
       sampling_strategy: config.sampling_strategy,
-      learning_rate: 0.001,
+      learning_rate: config.lr_config?.initial_lr ?? 1e-5,
     };
 
     const response = await fetch(`${API_URL}/start-automated-training`, {
